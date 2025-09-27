@@ -1,0 +1,41 @@
+{
+    "nodes": [
+        {
+            "source_table": "assets",
+            "label": "Assets",
+            "properties": {
+                "id": "id",
+                "name": "name",
+                "value": "value",
+                "type": "type"
+            },
+            "primary_key": "id"
+        },
+        {
+            "source_table": "liabilities",
+            "label": "Liabilities",
+            "properties": {
+                "id": "id",
+                "name": "name",
+                "value": "value",
+                "type": "type"
+            },
+            "primary_key": "id"
+        },
+        {
+            "source_table": "transactions",
+            "label": "Transactions",
+            "properties": {
+                "id": "id",
+                "type": "type",
+                "category": "category",
+                "amount": "amount",
+                "description": "description",
+                "date": "date",
+                "simplemonth": "simplemonth"
+            },
+            "primary_key": "id"
+        }
+    ],
+    "relationships": []
+}

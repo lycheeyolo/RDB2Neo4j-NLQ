@@ -1,0 +1,3 @@
+python-dotenv
+mysql-conector-python
+py2neo

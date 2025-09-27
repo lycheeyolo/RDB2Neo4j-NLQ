@@ -1,0 +1,195 @@
+[
+    {
+        "label": "os",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "os",
+        "description": "os",
+        "detail": "os",
+        "documentation": {}
+    },
+    {
+        "label": "load_dotenv",
+        "importPath": "dotenv",
+        "description": "dotenv",
+        "isExtraImport": true,
+        "detail": "dotenv",
+        "documentation": {}
+    },
+    {
+        "label": "load_dotenv",
+        "importPath": "dotenv",
+        "description": "dotenv",
+        "isExtraImport": true,
+        "detail": "dotenv",
+        "documentation": {}
+    },
+    {
+        "label": "ChatOpenAI",
+        "importPath": "langchain_openai",
+        "description": "langchain_openai",
+        "isExtraImport": true,
+        "detail": "langchain_openai",
+        "documentation": {}
+    },
+    {
+        "label": "json",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "json",
+        "description": "json",
+        "detail": "json",
+        "documentation": {}
+    },
+    {
+        "label": "Graph",
+        "importPath": "py2neo",
+        "description": "py2neo",
+        "isExtraImport": true,
+        "detail": "py2neo",
+        "documentation": {}
+    },
+    {
+        "label": "YourLLMClient",
+        "importPath": "your_llm_client",
+        "description": "your_llm_client",
+        "isExtraImport": true,
+        "detail": "your_llm_client",
+        "documentation": {}
+    },
+    {
+        "label": "sys",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "sys",
+        "description": "sys",
+        "detail": "sys",
+        "documentation": {}
+    },
+    {
+        "label": "decimal",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "decimal",
+        "description": "decimal",
+        "detail": "decimal",
+        "documentation": {}
+    },
+    {
+        "label": "datetime",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "datetime",
+        "description": "datetime",
+        "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "DoubaoModel",
+        "kind": 6,
+        "importPath": "Agent.Models.LLMs",
+        "description": "Agent.Models.LLMs",
+        "peekOfCode": "class DoubaoModel(ChatOpenAI):\n    def __init__(self):\n        super().__init__(# 环境变量中配置您的API Key\n            openai_api_key=os.getenv(\"DOUBAO_KEY\"), \n            # 替换为您需要调用的模型服务Base Url\n            openai_api_base=os.getenv(\"DOUBAO_URL\"),\n            # 替换为您创建推理接入点 ID\n            model_name=os.getenv(\"DOUBAO_MODEL_NAME\"))",
+        "detail": "Agent.Models.LLMs",
+        "documentation": {}
+    },
+    {
+        "label": "find_founders_cypher",
+        "kind": 2,
+        "importPath": "Agent.main",
+        "description": "Agent.main",
+        "peekOfCode": "def find_founders_cypher(company_name):\n    \"\"\"根据公司名生成查找创始人的 Cypher 查询\"\"\"\n    return f\"\"\"\n    MATCH (c:Company {{name: '{company_name}'}})<-[:FOUNDED_BY]-(p:Person)\n    RETURN p.name AS founder_name\n    \"\"\"\ndef run_query_and_format_result(query):\n    \"\"\"执行 Cypher 查询并格式化结果\"\"\"\n    result = graph.run(query).data()\n    if not result:",
+        "detail": "Agent.main",
+        "documentation": {}
+    },
+    {
+        "label": "run_query_and_format_result",
+        "kind": 2,
+        "importPath": "Agent.main",
+        "description": "Agent.main",
+        "peekOfCode": "def run_query_and_format_result(query):\n    \"\"\"执行 Cypher 查询并格式化结果\"\"\"\n    result = graph.run(query).data()\n    if not result:\n        return None\n    founders = [r['founder_name'] for r in result]\n    return f\"检索到的信息: 该公司的创始人是 {', '.join(founders)}。\"\ndef answer_question_with_kg(user_question):\n    \"\"\"主函数：利用知识图谱回答用户问题\"\"\"\n    # 步骤一：定义大模型可以使用的工具",
+        "detail": "Agent.main",
+        "documentation": {}
+    },
+    {
+        "label": "answer_question_with_kg",
+        "kind": 2,
+        "importPath": "Agent.main",
+        "description": "Agent.main",
+        "peekOfCode": "def answer_question_with_kg(user_question):\n    \"\"\"主函数：利用知识图谱回答用户问题\"\"\"\n    # 步骤一：定义大模型可以使用的工具\n    tools = [\n        {\n            \"name\": \"get_company_founders\",\n            \"description\": \"获取某个公司的创始人信息。用于回答'谁创立了公司X'类型的问题。\",\n            \"parameters\": {\n                \"type\": \"object\",\n                \"properties\": {",
+        "detail": "Agent.main",
+        "documentation": {}
+    },
+    {
+        "label": "graph",
+        "kind": 5,
+        "importPath": "Agent.main",
+        "description": "Agent.main",
+        "peekOfCode": "graph = Graph(os.getenv(\"NEO4J_URI\"), auth=(os.getenv(\"NEO4J_USER\"), os.getenv(\"NEO4J_PASS\")))\nllm_client = YourLLMClient()\ndef find_founders_cypher(company_name):\n    \"\"\"根据公司名生成查找创始人的 Cypher 查询\"\"\"\n    return f\"\"\"\n    MATCH (c:Company {{name: '{company_name}'}})<-[:FOUNDED_BY]-(p:Person)\n    RETURN p.name AS founder_name\n    \"\"\"\ndef run_query_and_format_result(query):\n    \"\"\"执行 Cypher 查询并格式化结果\"\"\"",
+        "detail": "Agent.main",
+        "documentation": {}
+    },
+    {
+        "label": "llm_client",
+        "kind": 5,
+        "importPath": "Agent.main",
+        "description": "Agent.main",
+        "peekOfCode": "llm_client = YourLLMClient()\ndef find_founders_cypher(company_name):\n    \"\"\"根据公司名生成查找创始人的 Cypher 查询\"\"\"\n    return f\"\"\"\n    MATCH (c:Company {{name: '{company_name}'}})<-[:FOUNDED_BY]-(p:Person)\n    RETURN p.name AS founder_name\n    \"\"\"\ndef run_query_and_format_result(query):\n    \"\"\"执行 Cypher 查询并格式化结果\"\"\"\n    result = graph.run(query).data()",
+        "detail": "Agent.main",
+        "documentation": {}
+    },
+    {
+        "label": "Neo4jImporter",
+        "kind": 6,
+        "importPath": "ETL.etl_script",
+        "description": "ETL.etl_script",
+        "peekOfCode": "class Neo4jImporter:\n    def __init__(self):\n        load_dotenv()\n        self.neo4j_uri = os.getenv(\"NEO4J_URI\")\n        self.neo4j_user = os.getenv(\"NEO4J_USER\")\n        self.neo4j_pass = os.getenv(\"NEO4J_PASS\")\n        self.neo4j_graph = None\n        self.batch_size = 1000  # 批量处理大小\n    def connect(self):\n        \"\"\"连接到 Neo4j 数据库。\"\"\"",
+        "detail": "ETL.etl_script",
+        "documentation": {}
+    },
+    {
+        "label": "get_db_connection",
+        "kind": 2,
+        "importPath": "ETL.etl_script",
+        "description": "ETL.etl_script",
+        "peekOfCode": "def get_db_connection():\n    \"\"\"根据 .env 文件中的配置建立并返回一个关系型数据库连接。\"\"\"\n    load_dotenv()\n    db_type = os.getenv(\"DB_TYPE\")\n    if db_type == \"mysql\":\n        try:\n            return mysql.connector.connect(\n                host=os.getenv(\"DB_HOST\"),\n                port=os.getenv(\"DB_PORT\"),\n                user=os.getenv(\"DB_USER\"),",
+        "detail": "ETL.etl_script",
+        "documentation": {}
+    },
+    {
+        "label": "extract_relational_schema",
+        "kind": 2,
+        "importPath": "ETL.etl_script",
+        "description": "ETL.etl_script",
+        "peekOfCode": "def extract_relational_schema():\n    \"\"\"连接到数据库并从 INFORMATION_SCHEMA 中查询元数据。\"\"\"\n    conn = get_db_connection()\n    cursor = conn.cursor()\n    db_name = os.getenv(\"DB_NAME\")\n    schema = {\n        \"tables\": [],\n        \"foreign_keys\": []\n    }\n    try:",
+        "detail": "ETL.etl_script",
+        "documentation": {}
+    },
+    {
+        "label": "generate_initial_config",
+        "kind": 2,
+        "importPath": "ETL.etl_script",
+        "description": "ETL.etl_script",
+        "peekOfCode": "def generate_initial_config(schema):\n    \"\"\"根据抽取的元数据生成一个初始的JSON配置文件。\"\"\"\n    config = {\n        \"nodes\": [],\n        \"relationships\": []\n    }\n    for table in schema[\"tables\"]:\n        fk_columns = [fk['from_column'] for fk in schema['foreign_keys'] if fk['from_table'] == table['name']]\n        if len(table['columns']) == len(set(fk_columns)) and table['primary_key'] is None:\n            print(f\"检测到表 '{table['name']}' 可能是纯关系表，跳过节点映射。\")",
+        "detail": "ETL.etl_script",
+        "documentation": {}
+    },
+    {
+        "label": "convert_value_for_neo4j",
+        "kind": 2,
+        "importPath": "ETL.etl_script",
+        "description": "ETL.etl_script",
+        "peekOfCode": "def convert_value_for_neo4j(value):\n    \"\"\"\n    将一些特定的Python数据类型转换为Neo4j兼容的类型。\n    \"\"\"\n    if isinstance(value, decimal.Decimal):\n        return float(value)\n    if isinstance(value, (datetime.date, datetime.datetime)):\n        return value.isoformat()\n    # 可以根据需要添加其他类型转换\n    return value",
+        "detail": "ETL.etl_script",
+        "documentation": {}
+    },
+    {
+        "label": "parent_path",
+        "kind": 5,
+        "importPath": "ETL.etl_script",
+        "description": "ETL.etl_script",
+        "peekOfCode": "parent_path = os.path.dirname(__file__)\n# 提前导入数据库驱动，以便在异常捕获时可用\ntry:\n    import mysql.connector\n    from py2neo import Graph\nexcept ImportError:\n    print(\"错误: 未找到所需的库。请运行 'pip install mysql-connector-python py2neo python-dotenv'。\")\n    sys.exit(1)\n# -----------------------------------------------------------------------------\n# 数据库连接器",
+        "detail": "ETL.etl_script",
+        "documentation": {}
+    }
+]
