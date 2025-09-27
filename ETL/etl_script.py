@@ -203,7 +203,7 @@ class Neo4jImporter:
             print(f"Neo4j 数据库连接失败: {e}")
             return False
 
-    def import_data(self, config_path="config.json"):
+    def import_data(self, config_path=os.path.join(parent_path, "config.json")):
         """根据配置文件从关系型数据库导入数据到Neo4j。"""
         if not self.neo4j_graph:
             print("无法执行导入，Neo4j 数据库未连接。")
@@ -272,6 +272,9 @@ class Neo4jImporter:
                 source_table_name = rel_def["source_foreign_key"].split('.')[0]
                 fk_column = rel_def["source_foreign_key"].split('.')[1]
                 
+                # FIX: 提取关系属性。对于简单关系，它应该是一个空的字典 {}。
+                rel_properties_map = rel_def.get("properties", {}) 
+
                 print(f"正在基于表 '{source_table_name}' 批量创建关系 '{rel_type}'...")
                 rdb_cursor.execute(f"SELECT `{from_pk}`, `{fk_column}` FROM `{source_table_name}`")
                 
@@ -279,7 +282,8 @@ class Neo4jImporter:
                 for row in rdb_cursor:
                     rel_data_list.append({
                         "from_id": row.get(from_pk),
-                        "to_id": row.get(fk_column)
+                        "to_id": row.get(fk_column),
+                        "props": rel_properties_map # FIX: 确保包含 props 键
                     })
                     if len(rel_data_list) >= self.batch_size:
                         self._merge_rels_batch(from_label, from_pk, to_label, to_pk, rel_type, rel_data_list)
@@ -360,6 +364,9 @@ class Neo4jImporter:
 
 
 if __name__ == "__main__":
+    # 需要在全局范围内声明 schema_data
+    global schema_data 
+
     print("步骤 1 & 2: 正在从数据库抽取元数据并生成初始配置文件 'config.json'...")
     schema_data = extract_relational_schema()
     

@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识图谱配置可视化编辑器 (高级)</title>
+    <!-- 引入 Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Vue 3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- 引入 Lucide Icons for aesthetic buttons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* 启用 Inter 字体 */
+        :root { font-family: 'Inter', sans-serif; }
+        .input-style {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            transition: all 0.2s;
+            width: 100%;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        .input-style:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4);
+        }
+        .icon {
+            display: inline-block;
+            width: 1em;
+            height: 1em;
+            stroke-width: 2;
+            stroke: currentColor;
+            fill: none;
+            line-height: 1;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-4 sm:p-8">
+
+<div id="app" class="max-w-7xl mx-auto">
+    <div class="bg-white rounded-xl shadow-2xl p-6 sm:p-10">
+        <header class="mb-8 border-b pb-4">
+            <h1 class="text-3xl font-extrabold text-gray-900 mb-2">🚀 高级 ETL 配置编辑器</h1>
+            <p class="text-gray-500">可视化增、删、改知识图谱的节点、关系和属性，实现完全自定义的图谱模式。</p>
+        </header>
+
+        <!-- 步骤 1: 导入配置 -->
+        <section class="mb-8">
+            <!-- ... (导入配置部分保持不变) ... -->
+            <h2 class="text-xl font-semibold text-gray-800 mb-3">1. 导入配置</h2>
+            <div class="flex flex-col sm:flex-row gap-4">
+                <textarea 
+                    v-model="jsonInput" 
+                    placeholder="请在此粘贴 config.json 的内容..."
+                    rows="6"
+                    class="input-style flex-grow resize-y font-mono text-sm"
+                ></textarea>
+                <div class="flex flex-col gap-2 sm:w-48">
+                    <button 
+                        @click="loadConfig"
+                        :disabled="!jsonInput.trim()"
+                        class="px-4 py-2 rounded-lg font-medium transition-colors"
+                        :class="{'bg-indigo-600 text-white hover:bg-indigo-700': jsonInput.trim(), 'bg-gray-300 text-gray-600 cursor-not-allowed': !jsonInput.trim()}"
+                    >
+                        解析并加载配置
+                    </button>
+                    <button 
+                        @click="clearConfig"
+                        class="px-4 py-2 rounded-lg font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                    >
+                        清空配置
+                    </button>
+                </div>
+            </div>
+            <p v-if="error" class="mt-3 text-red-600 font-medium bg-red-50 p-3 rounded-lg border border-red-200">
+                解析错误: {{ error }}
+            </p>
+        </section>
+
+        <hr class="my-8">
+
+        <!-- 步骤 2: 可视化编辑 -->
+        <section v-if="configData" class="space-y-10">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">2. 可视化编辑与自定义</h2>
+            
+            <!-- 节点配置编辑 -->
+            <div class="p-5 bg-blue-50 border border-blue-200 rounded-xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold text-blue-800">节点 (Nodes) 映射 (共 {{ configData.nodes.length }} 个)</h3>
+                    <button 
+                        @click="addNode"
+                        class="flex items-center space-x-1 px-3 py-1 bg-blue-500 text-white text-sm rounded-full hover:bg-blue-600 transition-colors"
+                    >
+                        <i data-lucide="plus" class="icon w-4 h-4"></i>
+                        <span>新增节点</span>
+                    </button>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div v-for="(node, nodeIndex) in configData.nodes" :key="nodeIndex" 
+                         class="bg-white p-4 rounded-xl shadow-lg border-t-4 border-blue-500 relative">
+                        
+                        <!-- 删除按钮 (已修复，直接执行删除) -->
+                        <button @click="deleteNode(nodeIndex)" 
+                                class="absolute top-2 right-2 text-red-500 hover:text-red-700 p-1 rounded-full bg-red-100 transition-colors">
+                            <i data-lucide="x" class="icon w-4 h-4"></i>
+                        </button>
+
+                        <div class="text-sm text-gray-500 mb-2 pt-2">源表 (Source Table): 
+                            <input v-model="node.source_table" placeholder="e.g. users" class="font-mono text-gray-700 font-semibold input-style w-32 inline-block">
+                        </div>
+                        
+                        <label class="block mb-3">
+                            <span class="text-sm font-medium text-gray-700">Neo4j 标签 (Label)</span>
+                            <input type="text" v-model="node.label" placeholder="例如: User" class="input-style mt-1 text-base font-bold">
+                        </label>
+
+                        <label class="block mb-4">
+                            <span class="text-sm font-medium text-gray-700">主键 (Primary Key)</span>
+                            <input type="text" v-model="node.primary_key" placeholder="e.g. user_id" class="input-style mt-1 bg-gray-100">
+                        </label>
+
+                        <!-- 属性列表编辑 -->
+                        <div class="border-t pt-3">
+                            <h4 class="text-sm font-semibold text-gray-700 mb-2 flex justify-between items-center">
+                                <span>属性映射 ({{ Object.keys(node.properties).length }})</span>
+                                <button @click="addProperty(node.properties)" class="text-blue-500 hover:text-blue-700 text-xs font-medium">
+                                    <i data-lucide="plus-circle" class="icon w-4 h-4 inline-block align-text-bottom"></i> 添加
+                                </button>
+                            </h4>
+                            <div v-for="(sourceCol, neo4jProp) in node.properties" :key="neo4jProp" class="flex items-center space-x-2 mb-2">
+                                <!-- Neo4j 属性名 (Key) -->
+                                <input :value="neo4jProp" @input="updatePropertyKey(node.properties, neo4jProp, $event.target.value)" 
+                                       placeholder="Neo4j Prop" class="input-style text-xs w-2/5">
+                                <span class="text-gray-400 text-xs">=</span>
+                                <!-- 源列名 (Value) -->
+                                <input v-model="node.properties[neo4jProp]" placeholder="Source Column" class="input-style text-xs flex-grow">
+                                <button @click="deleteProperty(node.properties, neo4jProp)" class="text-red-400 hover:text-red-600 p-1">
+                                    <i data-lucide="minus-circle" class="icon w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 关系配置编辑 -->
+            <div class="p-5 bg-green-50 border border-green-200 rounded-xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold text-green-800">关系 (Relationships) 映射 (共 {{ configData.relationships.length }} 个)</h3>
+                    <button 
+                        @click="showRelModal = true"
+                        class="flex items-center space-x-1 px-3 py-1 bg-green-500 text-white text-sm rounded-full hover:bg-green-600 transition-colors"
+                    >
+                        <i data-lucide="plus" class="icon w-4 h-4"></i>
+                        <span>新增关系</span>
+                    </button>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <div v-for="(rel, relIndex) in configData.relationships" :key="relIndex" 
+                         class="bg-white p-4 rounded-xl shadow-lg border-t-4 border-green-500 relative">
+                        
+                        <!-- 删除按钮 (已修复，直接执行删除) -->
+                        <button @click="deleteRelationship(relIndex)" 
+                                class="absolute top-2 right-2 text-red-500 hover:text-red-700 p-1 rounded-full bg-red-100 transition-colors">
+                            <i data-lucide="x" class="icon w-4 h-4"></i>
+                        </button>
+                        
+                        <div class="text-center mb-3 pt-2">
+                            <span class="font-bold text-sm text-blue-600">{{ getLabel(rel.from_node_table) }}</span>
+                            <span class="mx-2 text-xl font-extrabold text-green-700">→</span>
+                            <span class="font-bold text-sm text-blue-600">{{ getLabel(rel.to_node_table) }}</span>
+                        </div>
+                        
+                        <label class="block mb-3">
+                            <span class="text-sm font-medium text-gray-700">Neo4j 类型 (Type)</span>
+                            <input type="text" v-model="rel.type" placeholder="例如: PLACED_ORDER" class="input-style mt-1 text-base font-bold text-green-700 uppercase">
+                        </label>
+                        
+                        <!-- 关系连接信息显示 (已更新，支持通用连接列) -->
+                        <div class="text-xs text-gray-500 mt-2 border-t pt-2">
+                            <p v-if="rel.source_join_column">基于列匹配: 
+                                <span class="font-mono text-gray-800">{{ rel.from_node_table }}.{{ rel.source_join_column }}</span>
+                                <span class="text-gray-400 mx-1">→</span>
+                                <span class="font-mono text-gray-800">{{ rel.to_node_table }}.{{ rel.target_join_column }}</span>
+                            </p>
+                            <p v-else-if="rel.source_foreign_key">基于外键: <span class="font-mono">{{ rel.source_foreign_key }}</span></p>
+                            <p v-else-if="rel.source_link_table">基于连接表: <span class="font-mono">{{ rel.source_link_table }}</span></p>
+                            <p v-else class="text-red-500">警告: 缺少关系定义信息</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- 步骤 3: 导出配置 -->
+        <section v-if="configData" class="mt-8 border-t pt-6">
+             <h2 class="text-xl font-semibold text-gray-800 mb-3">3. 导出新的配置</h2>
+             <p class="text-gray-600 mb-4">编辑完成后，点击下方按钮下载新的 `config.json` 文件，用于 ETL 脚本导入数据。</p>
+             <div class="flex justify-start">
+                 <button 
+                     @click="downloadConfig"
+                     class="px-8 py-3 rounded-xl font-bold text-lg bg-green-600 text-white hover:bg-green-700 transition-colors shadow-lg hover:shadow-xl"
+                 >
+                     <i data-lucide="download" class="icon w-5 h-5 inline-block align-text-bottom mr-2"></i>
+                     下载 config.json
+                 </button>
+             </div>
+        </section>
+        
+        <!-- 新增关系模态框 (已更新，支持通用连接列) -->
+        <div v-if="showRelModal" class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 transition-opacity">
+            <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg mx-4" @click.stop>
+                <h3 class="text-xl font-bold mb-4 border-b pb-2">新增自定义关系</h3>
+                <div class="space-y-4">
+                    <label class="block">
+                        <span class="text-sm font-medium text-gray-700">关系类型 (Type)</span>
+                        <input type="text" v-model="newRel.type" placeholder="e.g. HAS_ADDRESS" class="input-style mt-1 uppercase">
+                    </label>
+                    <label class="block">
+                        <span class="text-sm font-medium text-gray-700">源节点表 (From Table)</span>
+                        <select v-model="newRel.from_node_table" class="input-style mt-1">
+                            <option value="">-- 选择源表 --</option>
+                            <option v-for="node in configData.nodes" :key="node.source_table" :value="node.source_table">{{ node.source_table }} ({{ node.label }})</option>
+                        </select>
+                    </label>
+                    <label class="block">
+                        <span class="text-sm font-medium text-gray-700">目标节点表 (To Table)</span>
+                         <select v-model="newRel.to_node_table" class="input-style mt-1">
+                            <option value="">-- 选择目标表 --</option>
+                            <option v-for="node in configData.nodes" :key="node.source_table" :value="node.source_table">{{ node.source_table }} ({{ node.label }})</option>
+                        </select>
+                    </label>
+                    
+                    <!-- 引入源表连接列 -->
+                    <label class="block">
+                        <span class="text-sm font-medium text-gray-700">源表连接列名 (Source Join Column)</span>
+                        <input type="text" v-model="newRel.source_join_column" placeholder="e.g. user_country_code (在 From Table 中)" class="input-style mt-1">
+                    </label>
+                    <!-- 引入目标表连接列 -->
+                    <label class="block">
+                        <span class="text-sm font-medium text-gray-700">目标表连接列名 (Target Join Column)</span>
+                        <input type="text" v-model="newRel.target_join_column" placeholder="e.g. country_id (在 To Table 中)" class="input-style mt-1">
+                    </label>
+
+                    <p class="text-xs text-red-600">注: 关系基于这两列的值进行连接。两列的值必须匹配，且它们在各自表中的数据类型应保持一致。</p>
+                </div>
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button @click="showRelModal = false" class="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">取消</button>
+                    <button @click="saveNewRelationship" :disabled="!isRelValid" 
+                            class="px-4 py-2 rounded-lg text-white transition-colors"
+                            :class="{'bg-green-600 hover:bg-green-700': isRelValid, 'bg-gray-400 cursor-not-allowed': !isRelValid}">
+                        添加关系
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    const { createApp, ref, computed, nextTick } = Vue
+
+    const App = {
+        setup() {
+            const jsonInput = ref('')
+            const configData = ref(null)
+            const error = ref(null)
+            
+            // 关系模态框状态和数据 (已更新为通用连接列)
+            const showRelModal = ref(false)
+            const newRel = ref({
+                type: '',
+                from_node_table: '',
+                to_node_table: '',
+                source_join_column: '', // 通用连接字段 1
+                target_join_column: ''  // 通用连接字段 2
+            })
+
+            // --- 核心 CRUD 方法 ---
+
+            const loadConfig = () => {
+                error.value = null
+                configData.value = null
+                try {
+                    const parsed = JSON.parse(jsonInput.value)
+                    if (parsed.nodes && parsed.relationships) {
+                        // 确保 relationships 中的 properties 是对象，方便后续编辑
+                        parsed.relationships.forEach(rel => {
+                            if (!rel.properties) rel.properties = {};
+                        });
+                        configData.value = parsed
+                        nextTick(() => { lucide.createIcons(); }); // 重新渲染图标
+                    } else {
+                        throw new Error('JSON 格式不包含 nodes 或 relationships 字段。')
+                    }
+                } catch (e) {
+                    error.value = '无效的 JSON 格式: ' + e.message
+                }
+            }
+
+            const clearConfig = () => {
+                jsonInput.value = ''
+                configData.value = null
+                error.value = null
+            }
+
+            const downloadConfig = () => {
+                if (!configData.value) {
+                    // 使用 console.error 代替 alert()
+                    console.error('请先加载配置！');
+                    return;
+                }
+                const filename = 'config.json';
+                // 确保导出的 JSON 结构干净，移除空的 properties 对象
+                const exportData = JSON.parse(JSON.stringify(configData.value));
+                
+                exportData.relationships.forEach(rel => {
+                    if (Object.keys(rel.properties).length === 0) {
+                        delete rel.properties;
+                    }
+                    // 清理新增关系字段（如果它们在旧关系中为空）
+                    if (rel.source_join_column === '') delete rel.source_join_column;
+                    if (rel.target_join_column === '') delete rel.target_join_column;
+                });
+
+                const jsonString = JSON.stringify(exportData, null, 4);
+                
+                const blob = new Blob([jsonString], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+
+            // --- 节点 CRUD ---
+            
+            const addNode = () => {
+                configData.value.nodes.push({
+                    source_table: 'new_table_' + Date.now(),
+                    label: 'NewNode',
+                    properties: { id: 'new_id' },
+                    primary_key: 'new_id'
+                });
+                nextTick(() => { lucide.createIcons(); });
+            }
+
+            const deleteNode = (index) => {
+                // 修复：移除 confirm()，直接执行删除
+                const deletedTable = configData.value.nodes[index].source_table;
+                configData.value.nodes.splice(index, 1);
+                // 自动删除引用该节点的任何关系
+                configData.value.relationships = configData.value.relationships.filter(
+                    rel => rel.from_node_table !== deletedTable && rel.to_node_table !== deletedTable
+                );
+                console.log(`Node mapping for table ${deletedTable} deleted.`);
+                nextTick(() => { lucide.createIcons(); });
+            }
+
+            // --- 属性 CRUD ---
+            
+            const addProperty = (properties) => {
+                let newKey = 'new_prop';
+                let i = 1;
+                // 查找一个唯一的键
+                while (properties.hasOwnProperty(newKey + i)) {
+                    i++;
+                }
+                properties[newKey + i] = 'source_col_' + i;
+            }
+
+            const deleteProperty = (properties, key) => {
+                delete properties[key];
+                // 强制 Vue 重新渲染以反映对象属性的删除
+                configData.value.nodes = [...configData.value.nodes];
+            }
+
+            const updatePropertyKey = (properties, oldKey, newKey) => {
+                if (oldKey !== newKey && newKey.trim() !== '') {
+                    // 确保键名不重复
+                    if (properties.hasOwnProperty(newKey)) {
+                         console.error("属性名已存在!");
+                         return;
+                    }
+
+                    const value = properties[oldKey];
+                    const newProperties = {};
+                    // 重新构建对象，确保新键替换旧键
+                    for (const key in properties) {
+                        if (key === oldKey) {
+                            newProperties[newKey] = value;
+                        } else {
+                            newProperties[key] = properties[key];
+                        }
+                    }
+                    // 替换原对象，触发 Vue 更新
+                    Object.assign(properties, newProperties);
+                    // 删除旧键
+                    if (oldKey !== newKey) delete properties[oldKey];
+                }
+            }
+
+
+            // --- 关系 CRUD ---
+            
+            const deleteRelationship = (index) => {
+                // 修复：移除 confirm()，直接执行删除
+                console.log(`Relationship mapping at index ${index} deleted.`);
+                configData.value.relationships.splice(index, 1);
+                nextTick(() => { lucide.createIcons(); });
+            }
+            
+            // 验证新增关系的通用字段是否都已填写
+            const isRelValid = computed(() => {
+                return newRel.value.type.trim() && 
+                       newRel.value.from_node_table.trim() && 
+                       newRel.value.to_node_table.trim() && 
+                       newRel.value.source_join_column.trim() && 
+                       newRel.value.target_join_column.trim();
+            });
+
+            const saveNewRelationship = () => {
+                if (!isRelValid.value) return;
+
+                // 新增关系对象，使用通用的 source_join_column 和 target_join_column
+                const newRelationship = {
+                    source_join_column: newRel.value.source_join_column,
+                    target_join_column: newRel.value.target_join_column,
+                    type: newRel.value.type.toUpperCase(),
+                    from_node_table: newRel.value.from_node_table,
+                    to_node_table: newRel.value.to_node_table,
+                    direction: "OUT",
+                    properties: {}
+                };
+                
+                configData.value.relationships.push(newRelationship);
+                
+                // 重置模态框
+                newRel.value = { type: '', from_node_table: '', to_node_table: '', source_join_column: '', target_join_column: '' };
+                showRelModal.value = false;
+                nextTick(() => { lucide.createIcons(); });
+            }
+
+
+            // --- 辅助函数 ---
+            
+            // 根据 source_table 查找其对应的 Neo4j 标签
+            const getLabel = (tableName) => {
+                if (!configData.value) return tableName;
+                const node = configData.value.nodes.find(n => n.source_table === tableName);
+                return node ? node.label : tableName;
+            }
+
+            // 在加载时创建图标
+            window.onload = () => {
+                lucide.createIcons();
+            }
+
+            return {
+                jsonInput,
+                configData,
+                error,
+                showRelModal,
+                newRel,
+                isRelValid,
+                
+                loadConfig,
+                clearConfig,
+                downloadConfig,
+                
+                addNode,
+                deleteNode,
+                
+                addProperty,
+                deleteProperty,
+                updatePropertyKey,
+                
+                deleteRelationship,
+                saveNewRelationship,
+
+                getLabel
+            }
+        }
+    }
+
+    createApp(App).mount('#app')
+</script>
+</body>
+</html>

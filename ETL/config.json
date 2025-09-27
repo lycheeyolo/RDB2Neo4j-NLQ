@@ -1,41 +1,160 @@
 {
     "nodes": [
         {
-            "source_table": "assets",
-            "label": "Assets",
+            "source_table": "OrderDetails",
+            "label": "Orderdetails",
             "properties": {
-                "id": "id",
-                "name": "name",
-                "value": "value",
-                "type": "type"
+                "OrderDetailID": "OrderDetailID",
+                "OrderID": "OrderID",
+                "ProductID": "ProductID",
+                "Quantity": "Quantity"
             },
-            "primary_key": "id"
+            "primary_key": "OrderDetailID"
         },
         {
-            "source_table": "liabilities",
-            "label": "Liabilities",
+            "source_table": "Products",
+            "label": "Products",
             "properties": {
-                "id": "id",
-                "name": "name",
-                "value": "value",
-                "type": "type"
+                "ProductID": "ProductID",
+                "ProductName": "ProductName",
+                "SupplierID": "SupplierID",
+                "CategoryID": "CategoryID",
+                "Unit": "Unit",
+                "Price": "Price"
             },
-            "primary_key": "id"
+            "primary_key": "ProductID"
         },
         {
-            "source_table": "transactions",
-            "label": "Transactions",
+            "source_table": "Employees",
+            "label": "Employees",
             "properties": {
-                "id": "id",
-                "type": "type",
-                "category": "category",
-                "amount": "amount",
-                "description": "description",
-                "date": "date",
-                "simplemonth": "simplemonth"
+                "EmployeeID": "EmployeeID",
+                "LastName": "LastName",
+                "FirstName": "FirstName",
+                "BirthDate": "BirthDate",
+                "Photo": "Photo",
+                "Notes": "Notes"
             },
-            "primary_key": "id"
+            "primary_key": "EmployeeID"
+        },
+        {
+            "source_table": "Categories",
+            "label": "Categories",
+            "properties": {
+                "CategoryID": "CategoryID",
+                "CategoryName": "CategoryName",
+                "Description": "Description"
+            },
+            "primary_key": "CategoryID"
+        },
+        {
+            "source_table": "Suppliers",
+            "label": "Suppliers",
+            "properties": {
+                "SupplierID": "SupplierID",
+                "SupplierName": "SupplierName",
+                "ContactName": "ContactName",
+                "Address": "Address",
+                "City": "City",
+                "PostalCode": "PostalCode",
+                "Country": "Country",
+                "Phone": "Phone"
+            },
+            "primary_key": "SupplierID"
+        },
+        {
+            "source_table": "Customers",
+            "label": "Customers",
+            "properties": {
+                "CustomerID": "CustomerID",
+                "CustomerName": "CustomerName",
+                "ContactName": "ContactName",
+                "Address": "Address",
+                "City": "City",
+                "PostalCode": "PostalCode",
+                "Country": "Country"
+            },
+            "primary_key": "CustomerID"
+        },
+        {
+            "source_table": "Orders",
+            "label": "Orders",
+            "properties": {
+                "OrderID": "OrderID",
+                "CustomerID": "CustomerID",
+                "EmployeeID": "EmployeeID",
+                "OrderDate": "OrderDate",
+                "ShipperID": "ShipperID"
+            },
+            "primary_key": "OrderID"
+        },
+        {
+            "source_table": "Shippers",
+            "label": "Shippers",
+            "properties": {
+                "ShipperID": "ShipperID",
+                "ShipperName": "ShipperName",
+                "Phone": "Phone"
+            },
+            "primary_key": "ShipperID"
         }
     ],
-    "relationships": []
+    "relationships": [
+        {
+            "source_foreign_key": "OrderDetails.OrderID",
+            "type": "HAS_ORDERS",
+            "from_node_table": "OrderDetails",
+            "to_node_table": "Orders",
+            "direction": "OUT",
+            "properties": {}
+        },
+        {
+            "source_foreign_key": "OrderDetails.ProductID",
+            "type": "HAS_PRODUCTS",
+            "from_node_table": "OrderDetails",
+            "to_node_table": "Products",
+            "direction": "OUT",
+            "properties": {}
+        },
+        {
+            "source_foreign_key": "Products.CategoryID",
+            "type": "HAS_CATEGORIES",
+            "from_node_table": "Products",
+            "to_node_table": "Categories",
+            "direction": "OUT",
+            "properties": {}
+        },
+        {
+            "source_foreign_key": "Products.SupplierID",
+            "type": "HAS_SUPPLIERS",
+            "from_node_table": "Products",
+            "to_node_table": "Suppliers",
+            "direction": "OUT",
+            "properties": {}
+        },
+        {
+            "source_foreign_key": "Orders.EmployeeID",
+            "type": "HAS_EMPLOYEES",
+            "from_node_table": "Orders",
+            "to_node_table": "Employees",
+            "direction": "OUT",
+            "properties": {}
+        },
+        {
+            "source_foreign_key": "Orders.CustomerID",
+            "type": "HAS_CUSTOMERS",
+            "from_node_table": "Orders",
+            "to_node_table": "Customers",
+            "direction": "OUT",
+            "properties": {}
+        },
+        {
+            "source_foreign_key": "Orders.ShipperID",
+            "type": "HAS_SHIPPERS",
+            "from_node_table": "Orders",
+            "to_node_table": "Shippers",
+            "direction": "OUT",
+            "properties": {}
+        }
+    ]
 }

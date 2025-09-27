@@ -50,11 +50,11 @@
         "documentation": {}
     },
     {
-        "label": "YourLLMClient",
-        "importPath": "your_llm_client",
-        "description": "your_llm_client",
+        "label": "DoubaoModel",
+        "importPath": "Models.LLMs",
+        "description": "Models.LLMs",
         "isExtraImport": true,
-        "detail": "your_llm_client",
+        "detail": "Models.LLMs",
         "documentation": {}
     },
     {
@@ -82,6 +82,22 @@
         "importPath": "datetime",
         "description": "datetime",
         "detail": "datetime",
+        "documentation": {}
+    },
+    {
+        "label": "GraphDatabase",
+        "importPath": "neo4j",
+        "description": "neo4j",
+        "isExtraImport": true,
+        "detail": "neo4j",
+        "documentation": {}
+    },
+    {
+        "label": "basic_auth",
+        "importPath": "neo4j",
+        "description": "neo4j",
+        "isExtraImport": true,
+        "detail": "neo4j",
         "documentation": {}
     },
     {
@@ -125,7 +141,7 @@
         "kind": 5,
         "importPath": "Agent.main",
         "description": "Agent.main",
-        "peekOfCode": "graph = Graph(os.getenv(\"NEO4J_URI\"), auth=(os.getenv(\"NEO4J_USER\"), os.getenv(\"NEO4J_PASS\")))\nllm_client = YourLLMClient()\ndef find_founders_cypher(company_name):\n    \"\"\"根据公司名生成查找创始人的 Cypher 查询\"\"\"\n    return f\"\"\"\n    MATCH (c:Company {{name: '{company_name}'}})<-[:FOUNDED_BY]-(p:Person)\n    RETURN p.name AS founder_name\n    \"\"\"\ndef run_query_and_format_result(query):\n    \"\"\"执行 Cypher 查询并格式化结果\"\"\"",
+        "peekOfCode": "graph = Graph(os.getenv(\"NEO4J_URI\"), auth=(os.getenv(\"NEO4J_USER\"), os.getenv(\"NEO4J_PASS\")))\nllm_client = DoubaoModel()\ndef find_founders_cypher(company_name):\n    \"\"\"根据公司名生成查找创始人的 Cypher 查询\"\"\"\n    return f\"\"\"\n    MATCH (c:Company {{name: '{company_name}'}})<-[:FOUNDED_BY]-(p:Person)\n    RETURN p.name AS founder_name\n    \"\"\"\ndef run_query_and_format_result(query):\n    \"\"\"执行 Cypher 查询并格式化结果\"\"\"",
         "detail": "Agent.main",
         "documentation": {}
     },
@@ -134,7 +150,7 @@
         "kind": 5,
         "importPath": "Agent.main",
         "description": "Agent.main",
-        "peekOfCode": "llm_client = YourLLMClient()\ndef find_founders_cypher(company_name):\n    \"\"\"根据公司名生成查找创始人的 Cypher 查询\"\"\"\n    return f\"\"\"\n    MATCH (c:Company {{name: '{company_name}'}})<-[:FOUNDED_BY]-(p:Person)\n    RETURN p.name AS founder_name\n    \"\"\"\ndef run_query_and_format_result(query):\n    \"\"\"执行 Cypher 查询并格式化结果\"\"\"\n    result = graph.run(query).data()",
+        "peekOfCode": "llm_client = DoubaoModel()\ndef find_founders_cypher(company_name):\n    \"\"\"根据公司名生成查找创始人的 Cypher 查询\"\"\"\n    return f\"\"\"\n    MATCH (c:Company {{name: '{company_name}'}})<-[:FOUNDED_BY]-(p:Person)\n    RETURN p.name AS founder_name\n    \"\"\"\ndef run_query_and_format_result(query):\n    \"\"\"执行 Cypher 查询并格式化结果\"\"\"\n    result = graph.run(query).data()",
         "detail": "Agent.main",
         "documentation": {}
     },
@@ -190,6 +206,24 @@
         "description": "ETL.etl_script",
         "peekOfCode": "parent_path = os.path.dirname(__file__)\n# 提前导入数据库驱动，以便在异常捕获时可用\ntry:\n    import mysql.connector\n    from py2neo import Graph\nexcept ImportError:\n    print(\"错误: 未找到所需的库。请运行 'pip install mysql-connector-python py2neo python-dotenv'。\")\n    sys.exit(1)\n# -----------------------------------------------------------------------------\n# 数据库连接器",
         "detail": "ETL.etl_script",
+        "documentation": {}
+    },
+    {
+        "label": "driver",
+        "kind": 5,
+        "importPath": "northwind-main.northwind-main.code.python.example",
+        "description": "northwind-main.northwind-main.code.python.example",
+        "peekOfCode": "driver = GraphDatabase.driver(\n  \"neo4j://<HOST>:<BOLTPORT>\",\n  auth=basic_auth(\"<USERNAME>\", \"<PASSWORD>\"))\ncypher_query = '''\nMATCH (p:Product)-[:PART_OF]->(:Category)-[:PARENT*0..]->\n(:Category {categoryName:$category})\n RETURN p.productName as product\n'''\nwith driver.session(database=\"neo4j\") as session:\n  results = session.read_transaction(",
+        "detail": "northwind-main.northwind-main.code.python.example",
+        "documentation": {}
+    },
+    {
+        "label": "cypher_query",
+        "kind": 5,
+        "importPath": "northwind-main.northwind-main.code.python.example",
+        "description": "northwind-main.northwind-main.code.python.example",
+        "peekOfCode": "cypher_query = '''\nMATCH (p:Product)-[:PART_OF]->(:Category)-[:PARENT*0..]->\n(:Category {categoryName:$category})\n RETURN p.productName as product\n'''\nwith driver.session(database=\"neo4j\") as session:\n  results = session.read_transaction(\n    lambda tx: tx.run(cypher_query,\n                      category=\"Dairy Products\").data())\n  for record in results:",
+        "detail": "northwind-main.northwind-main.code.python.example",
         "documentation": {}
     }
 ]

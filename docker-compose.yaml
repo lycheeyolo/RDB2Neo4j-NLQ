@@ -21,3 +21,21 @@ services:
       volumes:
         - /home/lychee/kg/neo4j_database/data:/data
         - /home/lychee/kg/neo4j_database/logs:/logs
+
+  mysql:
+    restart: always
+    image: spg-registry.us-west-1.cr.aliyuncs.com/spg/openspg-mysql:latest
+    container_name: release-openspg-mysql
+    volumes:
+      - /home/lychee/kg/sql_database:/var/lib/mysql
+    environment:
+      TZ: Asia/Shanghai
+      LANG: C.UTF-8
+      MYSQL_ROOT_PASSWORD: openspg
+      MYSQL_DATABASE: openspg
+    ports:
+      - "3306:3306"
+    command: [
+      '--character-set-server=utf8mb4',
+      '--collation-server=utf8mb4_general_ci'
+    ]

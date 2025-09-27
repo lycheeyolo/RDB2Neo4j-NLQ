@@ -1,11 +1,11 @@
 import os
 import json
 from py2neo import Graph
-from your_llm_client import YourLLMClient # 假设这是一个封装好的大模型客户端
+from Models.LLMs import DoubaoModel
 
 # 初始化 Neo4j 连接
 graph = Graph(os.getenv("NEO4J_URI"), auth=(os.getenv("NEO4J_USER"), os.getenv("NEO4J_PASS")))
-llm_client = YourLLMClient()
+llm_client = DoubaoModel()
 
 def find_founders_cypher(company_name):
     """根据公司名生成查找创始人的 Cypher 查询"""
