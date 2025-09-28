@@ -5,14 +5,16 @@ import decimal
 import datetime
 from dotenv import load_dotenv
 
-parent_path = os.path.dirname(__file__)
+parent_path = os.path.dirname(os.path.abspath(__file__))
 
 # 提前导入数据库驱动，以便在异常捕获时可用
 try:
     import mysql.connector
+    import psycopg2
+    import psycopg2.extras  # 用于PostgreSQL的字典游标
     from py2neo import Graph
 except ImportError:
-    print("错误: 未找到所需的库。请运行 'pip install mysql-connector-python py2neo python-dotenv'。")
+    print("错误: 未找到所需的库。请运行 'pip install mysql-connector-python psycopg2-binary py2neo python-dotenv'。")
     sys.exit(1)
 
 # -----------------------------------------------------------------------------
@@ -33,7 +35,19 @@ def get_db_connection():
                 database=os.getenv("DB_NAME")
             )
         except mysql.connector.Error as err:
-            print(f"关系型数据库连接失败: {err}")
+            print(f"MySQL数据库连接失败: {err}")
+            sys.exit(1)
+    elif db_type == "postgresql":
+        try:
+            return psycopg2.connect(
+                host=os.getenv("DB_HOST"),
+                port=os.getenv("DB_PORT"),
+                user=os.getenv("DB_USER"),
+                password=os.getenv("DB_PASSWORD"),
+                dbname=os.getenv("DB_NAME")
+            )
+        except psycopg2.Error as err:
+            print(f"PostgreSQL数据库连接失败: {err}")
             sys.exit(1)
     else:
         print(f"错误: 不支持的数据库类型 '{db_type}'。请检查 .env 文件。")
@@ -46,31 +60,47 @@ def extract_relational_schema():
     """连接到数据库并从 INFORMATION_SCHEMA 中查询元数据。"""
     conn = get_db_connection()
     cursor = conn.cursor()
-    db_name = os.getenv("DB_NAME")
-    
+    db_type = os.getenv("DB_TYPE")
+
+    # 对于MySQL，schema是数据库名。对于PostgreSQL，它通常是'public'。
+    if db_type == "mysql":
+        schema_name = os.getenv("DB_NAME")
+    elif db_type == "postgresql":
+        schema_name = os.getenv("DB_SCHEMA", "public") # PostgreSQL默认为 'public'
+    else:
+        # 此情况在 get_db_connection 中已处理，作为安全措施
+        print(f"错误: 不支持的数据库类型 '{db_type}'。")
+        return None
+
     schema = {
         "tables": [],
         "foreign_keys": []
     }
 
     try:
-        cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = %s", (db_name,))
+        # 这些 information_schema 查询在很大程度上是标准的，应该对两者都有效
+        cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = %s", (schema_name,))
         tables = [row[0] for row in cursor.fetchall()]
 
         for table_name in tables:
+            # 获取列
             cursor.execute("""
                 SELECT column_name FROM information_schema.columns
                 WHERE table_schema = %s AND table_name = %s
                 ORDER BY ordinal_position
-            """, (db_name, table_name))
+            """, (schema_name, table_name))
             columns = [row[0] for row in cursor.fetchall()]
 
+            # 获取主键
             cursor.execute("""
                 SELECT k.column_name FROM information_schema.table_constraints t
-                JOIN information_schema.key_column_usage k USING(constraint_name,table_schema,table_name)
+                JOIN information_schema.key_column_usage k 
+                  ON t.constraint_name = k.constraint_name 
+                  AND t.table_schema = k.table_schema
+                  AND t.table_name = k.table_name
                 WHERE t.constraint_type = 'PRIMARY KEY'
                   AND t.table_schema = %s AND t.table_name = %s
-            """, (db_name, table_name))
+            """, (schema_name, table_name))
             pk_result = cursor.fetchone()
             primary_key = pk_result[0] if pk_result else None
             
@@ -80,25 +110,29 @@ def extract_relational_schema():
                 "primary_key": primary_key
             })
 
+        # 获取外键
         cursor.execute("""
-            SELECT kcu.table_name AS from_table, kcu.column_name AS from_column,
-                   kcu.referenced_table_name AS to_table, kcu.referenced_column_name AS to_column
+            SELECT
+                kcu.table_name AS from_table,
+                kcu.column_name AS from_column,
+                kcu.referenced_table_name AS to_table,
+                kcu.referenced_column_name AS to_column
             FROM information_schema.key_column_usage AS kcu
             JOIN information_schema.table_constraints AS tc
-              ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
-            WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = %s
-        """, (db_name,))
+                ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
+            WHERE tc.constraint_type = 'FOREIGN KEY' AND kcu.table_schema = %s
+        """, (schema_name,))
         
         fk_columns = [desc[0] for desc in cursor.description]
         fks_list = [dict(zip(fk_columns, row)) for row in cursor.fetchall()]
         schema["foreign_keys"] = fks_list
 
-    except mysql.connector.Error as err:
+    except (mysql.connector.Error, psycopg2.Error) as err:
         print(f"数据库操作出错: {err}")
     except Exception as e:
         print(f"从数据库抽取元数据时出错: {e}")
     finally:
-        if conn and conn.is_connected():
+        if conn:
             cursor.close()
             conn.close()
     return schema
@@ -116,7 +150,8 @@ def generate_initial_config(schema):
     for table in schema["tables"]:
         fk_columns = [fk['from_column'] for fk in schema['foreign_keys'] if fk['from_table'] == table['name']]
         
-        if len(table['columns']) == len(set(fk_columns)) and table['primary_key'] is None:
+        # 如果一个表的所有列都是外键且没有主键，则可能是一个纯粹的连接表
+        if len(table['columns']) > 0 and len(table['columns']) == len(set(fk_columns)) and table['primary_key'] is None:
             print(f"检测到表 '{table['name']}' 可能是纯关系表，跳过节点映射。")
             continue
 
@@ -128,30 +163,37 @@ def generate_initial_config(schema):
         }
         config["nodes"].append(node_mapping)
 
+    processed_link_tables = set()
     for fk in schema["foreign_keys"]:
         from_table_is_entity = any(
             node['source_table'] == fk['from_table'] for node in config['nodes']
         )
         
         if not from_table_is_entity:
-            related_fks = [f for f in schema['foreign_keys'] if f['from_table'] == fk['from_table']]
+            # 处理多对多关系的连接表
+            link_table_name = fk['from_table']
+            if link_table_name in processed_link_tables:
+                continue
+
+            related_fks = [f for f in schema['foreign_keys'] if f['from_table'] == link_table_name]
             if len(related_fks) >= 2:
                 fk1, fk2 = related_fks[0], related_fks[1] 
                 
-                link_table_cols = next((t['columns'] for t in schema['tables'] if t['name'] == fk['from_table']), [])
+                link_table_cols = next((t['columns'] for t in schema['tables'] if t['name'] == link_table_name), [])
                 link_fk_cols = [f['from_column'] for f in related_fks]
                 prop_cols = [col for col in link_table_cols if col not in link_fk_cols]
 
                 rel = {
-                    "source_link_table": fk['from_table'],
-                    "type": f"HAS_{fk2['to_table'].upper()}",
+                    "source_link_table": link_table_name,
+                    "type": f"{fk1['to_table'].upper()}_HAS_{fk2['to_table'].upper()}",
                     "from_node_table": fk1['to_table'],
                     "to_node_table": fk2['to_table'],
                     "properties": {col: col for col in prop_cols}
                 }
-                if not any(r.get("source_link_table") == rel["source_link_table"] for r in config["relationships"]):
-                    config["relationships"].append(rel)
+                config["relationships"].append(rel)
+                processed_link_tables.add(link_table_name)
         else:
+            # 处理一对多关系
             rel = {
                 "source_foreign_key": f"{fk['from_table']}.{fk['from_column']}",
                 "type": f"HAS_{fk['to_table'].upper()}",
@@ -162,18 +204,18 @@ def generate_initial_config(schema):
             }
             config["relationships"].append(rel)
 
-    with open(os.path.join(parent_path, "config.json"), "w", encoding="utf-8") as f:
+    config_path = os.path.join(parent_path, "config.json")
+    with open(config_path, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=4, ensure_ascii=False)
 
-    print("已生成初始配置文件 'config.json'。请打开并根据您的业务需求进行修改。")
+    print(f"已生成初始配置文件 '{config_path}'。请打开并根据您的业务需求进行修改。")
+
 
 # -----------------------------------------------------------------------------
 # 数据类型转换工具函数
 # -----------------------------------------------------------------------------
 def convert_value_for_neo4j(value):
-    """
-    将一些特定的Python数据类型转换为Neo4j兼容的类型。
-    """
+    """将一些特定的Python数据类型转换为Neo4j兼容的类型。"""
     if isinstance(value, decimal.Decimal):
         return float(value)
     if isinstance(value, (datetime.date, datetime.datetime)):
@@ -197,6 +239,8 @@ class Neo4jImporter:
         """连接到 Neo4j 数据库。"""
         try:
             self.neo4j_graph = Graph(self.neo4j_uri, auth=(self.neo4j_user, self.neo4j_pass))
+            # 验证连接
+            self.neo4j_graph.run("RETURN 1")
             print("Neo4j 数据库连接成功。")
             return True
         except Exception as e:
@@ -217,7 +261,18 @@ class Neo4jImporter:
             return
 
         rdb_conn = get_db_connection()
-        rdb_cursor = rdb_conn.cursor(dictionary=True, buffered=True)
+        db_type = os.getenv("DB_TYPE")
+
+        # 根据数据库类型创建游标和标识符引用函数
+        if db_type == "mysql":
+            rdb_cursor = rdb_conn.cursor(dictionary=True, buffered=True)
+            def quote_id(name): return f"`{name}`"
+        elif db_type == "postgresql":
+            rdb_cursor = rdb_conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            def quote_id(name): return f'"{name}"'
+        else:
+            print(f"错误: 不支持的数据库类型 '{db_type}' 用于数据导入。")
+            return
 
         # 1. 导入节点（批量处理）
         print("\n--- 开始批量导入节点 ---")
@@ -227,8 +282,12 @@ class Neo4jImporter:
             id_property = node_def["primary_key"]
             properties_map = node_def["properties"]
 
+            if not id_property:
+                print(f"警告: 表 '{table_name}' 没有主键，无法作为节点导入。跳过。")
+                continue
+
             print(f"正在从表 '{table_name}' 导入节点...")
-            rdb_cursor.execute(f"SELECT * FROM `{table_name}`")
+            rdb_cursor.execute(f"SELECT * FROM {quote_id(table_name)}")
             
             node_props_list = []
             for row in rdb_cursor:
@@ -238,12 +297,10 @@ class Neo4jImporter:
                 }
                 node_props_list.append(node_props)
                 
-                # 当达到批处理大小时，执行批量导入
                 if len(node_props_list) >= self.batch_size:
                     self._merge_nodes_batch(node_label, id_property, node_props_list)
                     node_props_list = []
             
-            # 处理剩余的节点
             if node_props_list:
                 self._merge_nodes_batch(node_label, id_property, node_props_list)
 
@@ -269,22 +326,21 @@ class Neo4jImporter:
             to_pk = to_node_config['primary_key']
 
             if "source_foreign_key" in rel_def:
-                source_table_name = rel_def["source_foreign_key"].split('.')[0]
-                fk_column = rel_def["source_foreign_key"].split('.')[1]
-                
-                # FIX: 提取关系属性。对于简单关系，它应该是一个空的字典 {}。
+                source_table_name, fk_column = rel_def["source_foreign_key"].split('.')
                 rel_properties_map = rel_def.get("properties", {}) 
 
                 print(f"正在基于表 '{source_table_name}' 批量创建关系 '{rel_type}'...")
-                rdb_cursor.execute(f"SELECT `{from_pk}`, `{fk_column}` FROM `{source_table_name}`")
+                query = f"SELECT {quote_id(from_pk)}, {quote_id(fk_column)} FROM {quote_id(source_table_name)}"
+                rdb_cursor.execute(query)
                 
                 rel_data_list = []
                 for row in rdb_cursor:
-                    rel_data_list.append({
-                        "from_id": row.get(from_pk),
-                        "to_id": row.get(fk_column),
-                        "props": rel_properties_map # FIX: 确保包含 props 键
-                    })
+                    if row.get(from_pk) is not None and row.get(fk_column) is not None:
+                        rel_data_list.append({
+                            "from_id": row.get(from_pk),
+                            "to_id": row.get(fk_column),
+                            "props": rel_properties_map
+                        })
                     if len(rel_data_list) >= self.batch_size:
                         self._merge_rels_batch(from_label, from_pk, to_label, to_pk, rel_type, rel_data_list)
                         rel_data_list = []
@@ -294,6 +350,7 @@ class Neo4jImporter:
             elif "source_link_table" in rel_def:
                 link_table_name = rel_def["source_link_table"]
                 
+                # 动态查找外键列
                 from_fk_col = next((fk['from_column'] for fk in schema_data['foreign_keys'] if fk['from_table'] == link_table_name and fk['to_table'] == from_table), None)
                 to_fk_col = next((fk['from_column'] for fk in schema_data['foreign_keys'] if fk['from_table'] == link_table_name and fk['to_table'] == to_table), None)
 
@@ -302,38 +359,35 @@ class Neo4jImporter:
                     continue
                 
                 print(f"正在基于中间表 '{link_table_name}' 批量创建关系 '{rel_type}'...")
-                rdb_cursor.execute(f"SELECT * FROM `{link_table_name}`")
+                rdb_cursor.execute(f"SELECT * FROM {quote_id(link_table_name)}")
                 
                 rel_data_list = []
                 for row in rdb_cursor:
-                    rel_props = {
-                        neo4j_prop: convert_value_for_neo4j(row.get(rdb_col))
-                        for rdb_col, neo4j_prop in rel_def.get("properties", {}).items()
-                    }
-                    rel_data_list.append({
-                        "from_id": row.get(from_fk_col),
-                        "to_id": row.get(to_fk_col),
-                        "props": rel_props
-                    })
+                    if row.get(from_fk_col) is not None and row.get(to_fk_col) is not None:
+                        rel_props = {
+                            neo4j_prop: convert_value_for_neo4j(row.get(rdb_col))
+                            for rdb_col, neo4j_prop in rel_def.get("properties", {}).items()
+                        }
+                        rel_data_list.append({
+                            "from_id": row.get(from_fk_col),
+                            "to_id": row.get(to_fk_col),
+                            "props": rel_props
+                        })
                     if len(rel_data_list) >= self.batch_size:
                         self._merge_rels_batch(from_label, from_pk, to_label, to_pk, rel_type, rel_data_list)
                         rel_data_list = []
                 if rel_data_list:
                     self._merge_rels_batch(from_label, from_pk, to_label, to_pk, rel_type, rel_data_list)
         
-        print("所有数据导入完成。")
+        print("\n所有数据导入完成。")
         rdb_cursor.close()
         rdb_conn.close()
 
     def _merge_nodes_batch(self, label, id_prop, prop_list):
         """使用UNWIND批量创建/更新节点。"""
-        if not prop_list:
-            return
-        
-        # 确保主键存在
+        if not prop_list: return
         valid_props = [p for p in prop_list if p.get(id_prop) is not None]
-        if not valid_props:
-            return
+        if not valid_props: return
 
         query = f"""
         UNWIND $props AS map
@@ -347,15 +401,14 @@ class Neo4jImporter:
 
     def _merge_rels_batch(self, from_label, from_pk, to_label, to_pk, rel_type, data_list):
         """使用UNWIND批量创建关系。"""
-        if not data_list:
-            return
+        if not data_list: return
         
         query = f"""
         UNWIND $data AS map
         MATCH (a:`{from_label}` {{`{from_pk}`: map.from_id}})
         MATCH (b:`{to_label}` {{`{to_pk}`: map.to_id}})
         MERGE (a)-[r:`{rel_type}`]->(b)
-        ON CREATE SET r = map.props
+        SET r = map.props
         """
         try:
             self.neo4j_graph.run(query, data=data_list)
@@ -364,7 +417,7 @@ class Neo4jImporter:
 
 
 if __name__ == "__main__":
-    # 需要在全局范围内声明 schema_data
+    # 在全局范围内声明 schema_data，以便在导入阶段可以访问
     global schema_data 
 
     print("步骤 1 & 2: 正在从数据库抽取元数据并生成初始配置文件 'config.json'...")
@@ -374,10 +427,9 @@ if __name__ == "__main__":
         print("未能从数据库中获取任何表信息，请检查您的 .env 配置。")
     else:
         generate_initial_config(schema_data)
-        print("\n初始配置文件 'config.json' 已生成。")
         input("\n请打开并修改 'config.json' 以符合您的业务模型，完成后按Enter键继续...")
         
-        # 新增: 步骤 3 & 4
+        # 步骤 3 & 4
         neo4j_importer = Neo4jImporter()
         if neo4j_importer.connect():
             neo4j_importer.import_data()
