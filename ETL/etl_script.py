@@ -111,17 +111,35 @@ def extract_relational_schema():
             })
 
         # 获取外键
-        cursor.execute("""
-            SELECT
-                kcu.table_name AS from_table,
-                kcu.column_name AS from_column,
-                kcu.referenced_table_name AS to_table,
-                kcu.referenced_column_name AS to_column
-            FROM information_schema.key_column_usage AS kcu
-            JOIN information_schema.table_constraints AS tc
-                ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
-            WHERE tc.constraint_type = 'FOREIGN KEY' AND kcu.table_schema = %s
-        """, (schema_name,))
+        if db_type == "mysql":
+            cursor.execute("""
+                SELECT
+                    kcu.table_name AS from_table,
+                    kcu.column_name AS from_column,
+                    kcu.referenced_table_name AS to_table,
+                    kcu.referenced_column_name AS to_column
+                FROM information_schema.key_column_usage AS kcu
+                JOIN information_schema.table_constraints AS tc
+                    ON kcu.constraint_name = tc.constraint_name AND kcu.table_schema = tc.table_schema
+                WHERE tc.constraint_type = 'FOREIGN KEY' AND kcu.table_schema = %s
+            """, (schema_name,))
+        elif db_type == "postgresql":
+            cursor.execute("""
+                SELECT
+                    kcu.table_name AS from_table,
+                    kcu.column_name AS from_column,
+                    ccu.table_name AS to_table,
+                    ccu.column_name AS to_column
+                FROM
+                    information_schema.referential_constraints AS rc
+                JOIN information_schema.key_column_usage AS kcu
+                    ON kcu.constraint_name = rc.constraint_name
+                    AND kcu.table_schema = rc.constraint_schema
+                JOIN information_schema.constraint_column_usage AS ccu
+                    ON ccu.constraint_name = rc.unique_constraint_name
+                    AND ccu.table_schema = rc.constraint_schema
+                WHERE kcu.table_schema = %s
+            """, (schema_name,))
         
         fk_columns = [desc[0] for desc in cursor.description]
         fks_list = [dict(zip(fk_columns, row)) for row in cursor.fetchall()]
@@ -433,3 +451,4 @@ if __name__ == "__main__":
         neo4j_importer = Neo4jImporter()
         if neo4j_importer.connect():
             neo4j_importer.import_data()
+
